@@ -1,0 +1,76 @@
+import pandas as pd
+import mysql.connector
+from mysql.connector import Error
+
+# MySQL connection config
+config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'Tonythebuilder2021!!!',
+    'database': 'btc_nz_analysis'
+}
+
+# Path to your CSV file
+csv_file = r'C:/Users/Tony/Documents/BTC price project/coin_Bitcoin.csv'
+
+# Helper function to safely convert values to float
+def to_float(val):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+# Step 1: Load the CSV
+df = pd.read_csv(csv_file)
+
+# Step 2: Parse 'Date' with the correct format
+df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
+
+# Step 3: Drop rows with invalid or missing dates
+df = df[df['Date'].notna()].copy()
+
+# Step 4: Force conversion to native Python datetime
+df.loc[:, 'Date'] = [d.to_pydatetime() for d in df['Date']]
+
+# Step 5: Select and rename only the columns you need
+df_selected = df[['Date', 'High', 'Low', 'Open', 'Close', 'Volume', 'Marketcap']].copy()
+df_selected.columns = ['date', 'high', 'low', 'open', 'close', 'volume', 'marketcap']
+
+# Step 6: Replace NaNs with None for MySQL compatibility
+df_selected = df_selected.where(pd.notnull(df_selected), None)
+
+# Step 7: Connect to MySQL and insert the data
+try:
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+
+    sql = """
+    INSERT INTO btc_prices (date, high, low, open, close, volume, marketcap)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+
+    count = 0
+    for _, row in df_selected.iterrows():
+        data = (
+            row['date'].strftime('%Y-%m-%d %H:%M:%S') if row['date'] else None,
+            to_float(row['high']),
+            to_float(row['low']),
+            to_float(row['open']),
+            to_float(row['close']),
+            to_float(row['volume']),
+            to_float(row['marketcap'])
+        )
+        print("Inserting:", data)  # Optional: comment out for performance
+        cursor.execute(sql, data)
+        count += 1
+
+    conn.commit()
+    print(f"\n✅ {count} rows inserted successfully.")
+
+except Error as e:
+    print("\n❌ Error during insert:", e)
+
+finally:
+    if 'conn' in locals() and conn.is_connected():
+        cursor.close()
+        conn.close()
