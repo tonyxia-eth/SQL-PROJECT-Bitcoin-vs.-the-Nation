@@ -1,0 +1,55 @@
+-- Table to store daily Bitcoin price and market metrics
+CREATE TABLE btc_prices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    date DATE,
+    open DECIMAL(10, 2),
+    high DECIMAL(10, 2),
+    low DECIMAL(10, 2),
+    close DECIMAL(10, 2),
+    volume BIGINT,
+    marketcap DECIMAL(15, 2)
+);
+
+-- Table to store NZ institutional balance sheet data
+CREATE TABLE balance_sheets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    period VARCHAR(10),
+    inst_sector VARCHAR(100),
+    inst_sector_code INT,
+    descriptor TEXT,
+    sna08trans VARCHAR(20),
+    asset_liability_code VARCHAR(20),
+    value DECIMAL(20, 2)
+);
+
+-- Table for recording major global or crypto-related events
+CREATE TABLE major_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_date DATE,
+    event_name VARCHAR(255),
+    event_description TEXT
+);
+
+-- View summarizing BTC yearly performance
+CREATE VIEW btc_yearly_summary AS
+SELECT
+    YEAR(date) AS year,
+    ROUND(AVG(close), 2) AS avg_close,
+    ROUND(MAX(high), 2) AS yearly_high,
+    ROUND(MIN(low), 2) AS yearly_low,
+    ROUND(STDDEV(close), 2) AS volatility,
+    ROUND((MAX(close) - MIN(close)) / MIN(close) * 100, 2) AS growth_percentage
+FROM btc_prices
+GROUP BY YEAR(date)
+ORDER BY year;
+
+-- View summarizing NZ sector asset totals by year
+CREATE VIEW nz_yearly_assets AS
+SELECT
+    LEFT(period, 4) AS year,
+    inst_sector,
+    ROUND(SUM(value), 2) AS total_assets
+FROM balance_sheets
+WHERE descriptor = 'Closing balance total assets'
+GROUP BY year, inst_sector
+ORDER BY year, inst_sector;
