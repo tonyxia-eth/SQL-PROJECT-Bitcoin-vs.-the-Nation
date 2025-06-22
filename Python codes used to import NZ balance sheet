@@ -1,0 +1,63 @@
+import pandas as pd
+import mysql.connector
+from mysql.connector import Error
+
+# MySQL connection config
+config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'Tonythebuilder2021!!!',
+    'database': 'btc_nz_analysis'
+}
+
+# CSV file path
+csv_file = r'C:/Users/Tony/Documents/BTC price project/annual-balance-sheets-2007-2023-provisional.csv'
+
+# Step 1: Load CSV
+df = pd.read_csv(csv_file)
+
+# Step 2: Rename columns to match MySQL table structure
+df.columns = ['period', 'inst_sector', 'inst_sector_code', 'descriptor', 'sna08trans', 'asset_liability_code', 'value']
+
+# Step 3: Clean placeholder values in 'value' column
+df['value'] = df['value'].replace(['..', '', 'C', 'R', 'S', 'X'], None)
+
+# Step 4: Replace NaNs with None
+df = df.where(pd.notnull(df), None)
+
+# Step 5: Connect and insert into MySQL
+try:
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+
+    sql = """
+    INSERT INTO balance_sheets (
+        period, inst_sector, inst_sector_code, descriptor, sna08trans, asset_liability_code, value
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+
+    count = 0
+    for _, row in df.iterrows():
+        data = (
+            row['period'],
+            row['inst_sector'],
+            int(row['inst_sector_code']) if row['inst_sector_code'] is not None else None,
+            row['descriptor'],
+            row['sna08trans'],
+            row['asset_liability_code'],
+            float(row['value']) if row['value'] is not None else None
+        )
+        print("Inserting:", data)
+        cursor.execute(sql, data)
+        count += 1
+
+    conn.commit()
+    print(f"\n✅ {count} rows inserted successfully into balance_sheets.")
+
+except Error as e:
+    print("\n❌ Error during insert:", e)
+
+finally:
+    if 'conn' in locals() and conn.is_connected():
+        cursor.close()
+        conn.close()
